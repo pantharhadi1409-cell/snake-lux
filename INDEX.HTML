@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ultimate Neon Snake</title>
+    <style>
+        /* --- CSS VARIABLES & RESET --- */
+        :root {
+            --bg-color: #050505;
+            --text-color: #ffffff;
+            --font-main: 'Courier New', Courier, monospace; /* Retro font */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            z-index: 10;
+            text-shadow: 0 0 5px #fff;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, #00ffcc, #ff00cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .score-board {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .score-box {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #333;
+            padding: 5px 10px;
+            border-radius: 5px;
+            text-align: right;
+        }
+
+        .score-label {
+            font-size: 0.7rem;
+            color: #888;
+            display: block;
+        }
+
+        .score-val {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00ffcc;
+        }
+
+        #combo-display {
+            color: #ffd700;
+            font-style: italic;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #combo-display.active { opacity: 1; transform: scale(1.1); }
+
+        /* --- GAME CONTAINER --- */
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 0 50px rgba(0, 255, 204, 0.1);
+            overflow: hidden;
+            background: #000;
+            border: 2px solid #222;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- CRT OVERLAY (RETRO EFFECT) --- */
+        .crt-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.7);
+            z-index: 15;
+            border-radius: 8px;
+        }
+        .crt-overlay::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: rgba(18, 16, 16, 0.1);
+            opacity: 0;
+            z-index: 2;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.02; }
+            5% { opacity: 0.05; }
+            10% { opacity: 0.01; }
+            100% { opacity: 0.02; }
+        }
+
+        /* --- MENUS --- */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 5, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            backdrop-filter: blur(5px);
+            border-radius: 8px;
+        }
+        .hidden { opacity: 0; pointer-events: none; }
+
+        .overlay h2 {
+            font-size: 2.5rem;
+            color: #ff0055;
+            text-shadow: 0 0 15px #ff0055;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background: transparent;
+            color: #00ffcc;
+            border: 2px solid #00ffcc;
+            padding: 10px 30px;
+            font-family: inherit;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            box-shadow: 0 0 10px #00ffcc;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        button:hover {
+            background: #00ffcc;
+            color: #000;
+            box-shadow: 0 0 25px #00ffcc;
+        }
+
+        /* --- MOBILE CONTROLS --- */
+        .mobile-controls {
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(2, 60px);
+            gap: 10px;
+        }
+        @media (min-width: 768px) { .mobile-controls { display: none; } }
+
+        .control-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            border-radius: 50%;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .control-btn:active { background: rgba(0, 255, 204, 0.3); }
+        .up { grid-column: 2; grid-row: 1; }
+        .left { grid-column: 1; grid-row: 2; }
+        .down { grid-column: 2; grid-row: 2; }
+        .right { grid-column: 3; grid-row: 2; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Neon Master</h1>
+        <div class="score-board">
+            <div class="score-box">
+                <span class="score-label">SCORE</span>
+                <span class="score-val" id="score">0</span>
+            </div>
+            <div id="combo-display">x1</div>
+        </div>
+    </header>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div class="crt-overlay"></div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="overlay">
+            <h2 style="color:#00ffcc; text-shadow:0 0 15px #00ffcc">NEON MASTER</h2>
+            <p style="color:#aaa; text-align:center; margin-bottom:10px;">
+                Pink = +10 | Gold = +20<br>
+                <span style="color:#ffd700">Combo Mode: Eat fast for Rainbow!</span>
+            </p>
+            <button id="start-btn">Start System</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="overlay hidden">
+            <h2>CRASHED</h2>
+            <p style="color:#fff; font-size:1.2rem">Score: <span id="final-score">0</span></p>
+            <button id="restart-btn">Retry</button>
+        </div>
+    </div>
+
+    <div class="mobile-controls">
+        <div class="control-btn up" data-dir="ArrowUp">▲</div>
+        <div class="control-btn left" data-dir="ArrowLeft">◀</div>
+        <div class="control-btn down" data-dir="ArrowDown">▼</div>
+        <div class="control-btn right" data-dir="ArrowRight">▶</div>
+    </div>
+
+    <script>
+        /**
+         * ULTIMATE NEON SNAKE ENGINE
+         * Features: Realistic Movement, Audio Synth, Combo System, Rainbow Mode.
+         */
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('final-score');
+        const comboEl = document.getElementById('combo-display');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const mobileBtns = document.querySelectorAll('.control-btn');
+
+        // CONFIG
+        const SPEED = 3.5;
+        const SEGMENT_RADIUS = 7;
+        const SEGMENT_SPACING = 9;
+        const INITIAL_LENGTH = 20;
+
+        // AUDIO SYSTEM (Synthesizer)
+        let audioCtx;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'eat') {
+                // High pitched "blip"
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'bonus') {
+                // "Coin" sound
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1000, now);
+                osc.frequency.linearRampToValueAtTime(2000, now + 0.1);
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'die') {
+                // Crash sound
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
+                gainNode.gain.setValueAtTime(0.5, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'combo') {
+                // Power up sound
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
+        }
+
+        // --- GAME STATE ---
+        let head = { x: 200, y: 200 };
+        let velocity = { x: 0, y: -SPEED }; 
+        let nextVelocity = { x: 0, y: -SPEED }; 
+        let path = []; 
+        let score = 0;
+        let particles = [];
+        let stars = [];
+        
+        // Combo System
+        let combo = 0;
+        let comboTimer = 0;
+        const COMBO_MAX_TIME = 2500; // 2.5 seconds to keep combo
+        let rainbowHue = 0;
+
+        // Food
+        let food = { x: 0, y: 0 };
+        let bonusFood = { x: 0, y: 0, active: false, spawnTime: 0 };
+        let nextBonusTime = 0;
+
+        // Screen Shake
+        let shakeIntensity = 0;
+
+        // Classes
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 1;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 1.0; this.decay = Math.random() * 0.03 + 0.02;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                this.vx *= 0.95; this.vy *= 0.95;
+                this.life -= this.decay;
+            }
+            draw(ctx) {
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI * 2); ctx.fill();
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class Star {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.z = Math.random() * 2 + 0.5;
+            }
+            update() {
+                this.x -= velocity.x * 0.1 * this.z;
+                this.y -= velocity.y * 0.1 * this.z;
+                if (this.x < 0) this.x = canvas.width;
+                if (this.x > canvas.width) this.x = 0;
+                if (this.y < 0) this.y = canvas.height;
+                if (this.y > canvas.height) this.y = 0;
+            }
+            draw(ctx) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.2 * this.z})`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, Math.random()*1.5, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        // --- LOGIC ---
+        function initGame() {
+            initAudio(); // Start audio on user interaction
+            
+            head = { x: canvas.width / 2, y: canvas.height / 2 };
+            velocity = { x: 0, y: -SPEED };
+            nextVelocity = { x: 0, y: -SPEED };
+            path = [];
+            for(let i=0; i < INITIAL_LENGTH * SEGMENT_SPACING; i++) path.push({ x: head.x, y: head.y + i });
+            
+            stars = [];
+            for(let i=0; i<50; i++) stars.push(new Star());
+
+            score = 0;
+            combo = 1; // Start at x1
+            comboTimer = 0;
+            particles = [];
+            bonusFood.active = false;
+            
+            scoreEl.innerText = "0";
+            comboEl.classList.remove('active');
+            
+            spawnFood();
+            scheduleNextBonus();
+            
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function scheduleNextBonus() {
+            nextBonusTime = Date.now() + 5000 + Math.random() * 5000;
+        }
+
+        function spawnFood() {
+            const grid = 40;
+            food = {
+                x: Math.floor(Math.random() * (canvas.width / grid)) * grid + 20,
+                y: Math.floor(Math.random() * (canvas.height / grid)) * grid + 20
+            };
+        }
+
+        function spawnBonus() {
+            const grid = 40;
+            let x = Math.floor(Math.random() * (canvas.width / grid)) * grid + 20;
+            let y = Math.floor(Math.random() * (canvas.height / grid)) * grid + 20;
+            bonusFood = { x, y, active: true, spawnTime: Date.now() };
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 20; i++) particles.push(new Particle(x, y, color));
+        }
+
+        function gameOver() {
+            playSound('die');
+            shakeIntensity = 20;
+            draw(); // Draw one last frame
+            setTimeout(() => {
+                finalScoreEl.innerText = score;
+                gameOverScreen.classList.remove('hidden');
+            }, 500);
+        }
+
+        function update() {
+            const now = Date.now();
+
+            // Input
+            velocity = { ...nextVelocity };
+            
+            // Move
+            head.x += velocity.x;
+            head.y += velocity.y;
+
+            // Wall Collision
+            if (head.x < SEGMENT_RADIUS || head.x > canvas.width - SEGMENT_RADIUS ||
+                head.y < SEGMENT_RADIUS || head.y > canvas.height - SEGMENT_RADIUS) {
+                return gameOver();
+            }
+
+            path.unshift({ x: head.x, y: head.y });
+
+            // --- Food Logic ---
+            if (Math.hypot(head.x - food.x, head.y - food.y) < (SEGMENT_RADIUS + 10)) {
+                // COMBO SYSTEM
+                if (now < comboTimer) {
+                    combo++;
+                    if (combo > 10) combo = 10; // Max combo
+                    if(combo > 3) playSound('combo');
+                } else {
+                    combo = 1; // Reset
+                }
+                comboTimer = now + COMBO_MAX_TIME;
+
+                // Score Calculation
+                const points = 10 * combo;
+                score += points;
+                
+                scoreEl.innerText = score;
+                
+                // Visual Feedback
+                comboEl.innerText = `x${combo}`;
+                comboEl.classList.add('active');
+                if(combo > 3) comboEl.style.color = `hsl(${rainbowHue}, 100%, 50%)`;
+                
+                createExplosion(food.x, food.y, '#ff0055');
+                playSound('eat');
+                spawnFood();
+            } else {
+                // Check Combo Decay
+                if (now > comboTimer && combo > 1) {
+                    combo = 1;
+                    comboEl.classList.remove('active');
+                }
+            }
+
+            // --- Bonus Logic ---
+            if (!bonusFood.active && now > nextBonusTime) spawnBonus();
+            if (bonusFood.active) {
+                if (Math.hypot(head.x - bonusFood.x, head.y - bonusFood.y) < (SEGMENT_RADIUS + 15)) {
+                    score += 20 * combo;
+                    scoreEl.innerText = score;
+                    createExplosion(bonusFood.x, bonusFood.y, '#ffd700');
+                    createExplosion(bonusFood.x, bonusFood.y, '#fff');
+                    playSound('bonus');
+                    shakeIntensity = 10;
+                    bonusFood.active = false;
+                    scheduleNextBonus();
+                } else if (now - bonusFood.spawnTime > 4000) {
+                    bonusFood.active = false;
+                    scheduleNextBonus();
+                }
+            }
+
+            // Path Trim
+            const currentSegments = INITIAL_LENGTH + (score / 10);
+            const maxPathLength = Math.floor(currentSegments * SEGMENT_SPACING);
+            if (path.length > maxPathLength) path.length = maxPathLength;
+
+            // Self Collision
+            const safeZone = SEGMENT_SPACING * 6;
+            for (let i = safeZone; i < path.length; i += 4) {
+                if (Math.hypot(head.x - path[i].x, head.y - path[i].y) < SEGMENT_RADIUS * 1.2) {
+                    return gameOver();
+                }
+            }
+
+            // Update Entities
+            stars.forEach(s => s.update());
+            particles.forEach((p, i) => { p.update(); if(p.life<=0) particles.splice(i,1); });
+            
+            if(shakeIntensity > 0) shakeIntensity *= 0.9;
+            if(shakeIntensity < 0.5) shakeIntensity = 0;
+
+            rainbowHue = (rainbowHue + 5) % 360; // Rotate colors
+        }
+
+        function draw() {
+            // Screen Shake
+            ctx.save();
+            if (shakeIntensity > 0) {
+                const dx = (Math.random() - 0.5) * shakeIntensity;
+                const dy = (Math.random() - 0.5) * shakeIntensity;
+                ctx.translate(dx, dy);
+            }
+
+            // Background
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40);
+
+            // Stars
+            stars.forEach(s => s.draw(ctx));
+
+            // Grid (Subtle)
+            ctx.strokeStyle = 'rgba(0, 255, 204, 0.03)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let i=0; i<canvas.width; i+=40) { ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); }
+            for(let i=0; i<canvas.height; i+=40) { ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); }
+            ctx.stroke();
+
+            // Determine Snake Color based on Combo
+            let snakeColor = '#00ffcc'; // Default Cyan
+            if (combo >= 5) snakeColor = `hsl(${rainbowHue}, 100%, 60%)`; // Rainbow
+            else if (combo >= 3) snakeColor = '#ffd700'; // Gold
+            else if (combo >= 2) snakeColor = '#ff00ff'; // Pink
+
+            // --- Draw Bonus ---
+            if (bonusFood.active) {
+                const scale = 1.2 + Math.sin(Date.now() / 50) * 0.2;
+                ctx.save();
+                ctx.translate(bonusFood.x, bonusFood.y);
+                ctx.scale(scale, scale);
+                ctx.shadowBlur = 30; ctx.shadowColor = '#ffd700';
+                ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3;
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 12,
+                               -Math.sin((18 + i * 72) * Math.PI / 180) * 12);
+                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 5,
+                               -Math.sin((54 + i * 72) * Math.PI / 180) * 5);
+                }
+                ctx.closePath(); ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.fillText('+20', -8, 4);
+                ctx.restore();
+            }
+
+            // --- Draw Food ---
+            ctx.save();
+            ctx.shadowBlur = 20; ctx.shadowColor = '#ff0055';
+            ctx.fillStyle = '#ff0055';
+            ctx.beginPath();
+            ctx.arc(food.x, food.y, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // --- Draw Snake ---
+            ctx.save();
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            
+            // Glow Tube
+            ctx.shadowBlur = 20; ctx.shadowColor = snakeColor;
+            ctx.strokeStyle = snakeColor; ctx.lineWidth = SEGMENT_RADIUS * 2 - 2;
+            
+            if (path.length > 0) {
+                ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+                for (let i = 1; i < path.length; i += 2) ctx.lineTo(path[i].x, path[i].y);
+                ctx.stroke();
+
+                // Inner Core
+                ctx.shadowBlur = 0; ctx.lineWidth = SEGMENT_RADIUS * 2 - 6;
+                ctx.strokeStyle = '#fff';
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // --- Draw Head ---
+            ctx.save();
+            ctx.translate(head.x, head.y);
+            ctx.rotate(Math.atan2(velocity.y, velocity.x));
+            ctx.shadowBlur = 25; ctx.shadowColor = '#fff';
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, SEGMENT_RADIUS * 1.5, 0, Math.PI * 2); ctx.fill();
+            // Eyes
+            ctx.fillStyle = '#000'; 
+            ctx.beginPath(); ctx.arc(4, -3, 2.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(4, 3, 2.5, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+
+            // --- Draw Particles ---
+            particles.forEach(p => p.draw(ctx));
+
+            ctx.restore();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if(gameOverScreen.classList.contains('hidden')) requestAnimationFrame(gameLoop);
+        }
+
+        // --- CONTROLS ---
+        function handleInput(key) {
+            if (gameOverScreen.classList.contains('hidden') === false) return;
+            switch (key) {
+                case 'ArrowUp': case 'w': case 'W':
+                    if (velocity.y === 0) nextVelocity = { x: 0, y: -SPEED }; break;
+                case 'ArrowDown': case 's': case 'S':
+                    if (velocity.y === 0) nextVelocity = { x: 0, y: SPEED }; break;
+                case 'ArrowLeft': case 'a': case 'A':
+                    if (velocity.x === 0) nextVelocity = { x: -SPEED, y: 0 }; break;
+                case 'ArrowRight': case 'd': case 'D':
+                    if (velocity.x === 0) nextVelocity = { x: SPEED, y: 0 }; break;
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
+            handleInput(e.key);
+        });
+
+        mobileBtns.forEach(btn => {
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(btn.dataset.dir); });
+            btn.addEventListener('click', (e) => handleInput(btn.dataset.dir));
+        });
+
+        startBtn.addEventListener('click', initGame);
+        restartBtn.addEventListener('click', initGame);
+
+    </script>
+</body>
+</html>
